@@ -2,7 +2,11 @@ package auth
 
 import (
 	"fintech/internal/models"
+	"os"
+	"time"
 
+	"github.com/golang-jwt/jwt"
+	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
 
@@ -44,4 +48,33 @@ func (s *AuthService) RegisterUser(firstName, lastName, email, phone, password s
 	})
 
 	return user, err
+}
+
+func (s *AuthService) Login(email, password string) (string, error) {
+	var user models.User
+
+	// 1. find user
+
+	if err := s.DB.Where("email = ?", email).First(&user).Error; err != nil {
+		return "", err //user not found
+	}
+
+	// 2. check password
+
+	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
+
+	if err != nil {
+		return "", err // wrong password
+	}
+
+	// 3. create JWT token
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user_id": user.ID,
+		"exp":     time.Now().Add(time.Hour * 72).Unix(), //expires in 3 days
+	})
+
+	// 4. sign token with a secret key from .env
+	tokenString, err := token.SignedString([]byte(os.Getenv(("JWT_SECRET"))))
+
+	return tokenString, err
 }

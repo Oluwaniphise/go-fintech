@@ -18,4 +18,5 @@ func Setup(app *fiber.App, db *gorm.DB) {
 	// 3 auth routes
 	authGroup := api.Group("/auth")
 	authGroup.Post("/register", authService.HandleRegister)
+	authGroup.Post("/login", authService.HandleLogin)
 }
