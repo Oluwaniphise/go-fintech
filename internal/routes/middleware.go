@@ -1,9 +1,10 @@
 package routes
 
 import (
+	"os"
+
 	jwtware "github.com/gofiber/contrib/jwt"
 	"github.com/gofiber/fiber/v2"
-	"os"
 )
 
 func ProtectedRoute() fiber.Handler {

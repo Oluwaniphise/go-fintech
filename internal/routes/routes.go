@@ -12,6 +12,7 @@ func Setup(app *fiber.App, db *gorm.DB) {
 	//1. initialize services
 
 	authService := &auth.AuthService{DB: db}
+	walletService := &wallet.WalletService{DB: db}
 
 	//2. Create a group for API versioning
 	api := app.Group("/api/v1")
@@ -23,5 +24,5 @@ func Setup(app *fiber.App, db *gorm.DB) {
 
 	walletGroup := api.Group("/wallet", ProtectedRoute())
 
-	walletGroup.Get("/balance", wallet.GetBalance)
+	walletGroup.Get("/balance", walletService.GetBalance)
 }
