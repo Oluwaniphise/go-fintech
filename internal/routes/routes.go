@@ -25,4 +25,5 @@ func Setup(app *fiber.App, db *gorm.DB) {
 	walletGroup := api.Group("/wallet", ProtectedRoute())
 
 	walletGroup.Get("/balance", walletService.GetBalance)
+	walletGroup.Post("/credit", walletService.HandleCreditWallet)
 }

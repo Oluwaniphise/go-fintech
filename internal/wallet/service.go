@@ -3,8 +3,10 @@ package wallet
 import (
 	"fintech/internal/auth"
 	"fintech/internal/models"
+	"strings"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -32,7 +34,12 @@ func (s *WalletService) GetBalance(c *fiber.Ctx) error {
 		"currency": wallet.Currency,
 	})
 }
-func (s *WalletService) CreditWallet(c *fiber.Ctx, amount int64, reference string, desc string) error {
+func generateTransactionReference() string {
+	// Example: TXN_2D2B5B2D18CC40D5A8A5E6A22B92C8B9
+	return "TXN_" + strings.ToUpper(strings.ReplaceAll(uuid.NewString(), "-", ""))
+}
+
+func (s *WalletService) CreditWallet(c *fiber.Ctx, amount int64, desc string) error {
 	userID, err := auth.GetUserIDFromContext(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": err.Error()})
@@ -53,6 +60,7 @@ func (s *WalletService) CreditWallet(c *fiber.Ctx, amount int64, reference strin
 		}
 
 		// 2. create transaction record (Type)
+		reference := generateTransactionReference()
 
 		transaction := models.Transaction{
 			WalletID:    wallet.ID,
