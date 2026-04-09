@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/gofiber/fiber/v2"
@@ -81,7 +82,7 @@ func (s *BillService) HandleAirtimePurchase(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to prepare airtime request"})
 	}
 
-	httpReq, err := http.NewRequest(http.MethodPost, "https://sandboxapi.iusebond.com/api/v1/vas/pay/airtime", bytes.NewBuffer(body))
+	httpReq, err := http.NewRequest(http.MethodPost, os.Getenv("BOND_SANDBOX_API")+"vas/pay/airtime", bytes.NewBuffer(body))
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to create airtime request"})
 	}
