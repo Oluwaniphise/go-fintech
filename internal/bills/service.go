@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fintech/internal/auth"
 	"fintech/internal/models"
+	"fintech/internal/providers/bond"
 	"fmt"
 	"io"
 	"net/http"
@@ -16,30 +17,6 @@ import (
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"
 )
-
-type BillService struct {
-	DB         *gorm.DB
-	HTTPClient *http.Client
-}
-
-type AirtimeRequest struct {
-	ProductCode     string `json:"productCode"`
-	ProductItemCode string `json:"productItemCode"`
-	CustomerVendID  string `json:"customerVendId"`
-	CustomerEmail   string `json:"customerEmail"`
-	CustomerPhone   string `json:"customerPhoneNumber"`
-	Amount          int64  `json:"amount"`
-}
-
-type bondAirtimePayload struct {
-	Reference       string `json:"reference"`
-	ProductCode     string `json:"productCode"`
-	ProductItemCode string `json:"productItemCode"`
-	CustomerVendID  string `json:"customerVendId"`
-	CustomerEmail   string `json:"customerEmail"`
-	CustomerPhone   string `json:"customerPhoneNumber"`
-	Amount          int64  `json:"amount"`
-}
 
 func (s *BillService) HandleAirtimePurchase(c *fiber.Ctx) error {
 	req := new(AirtimeRequest)
@@ -126,6 +103,8 @@ func (s *BillService) HandleAirtimePurchase(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{"error": "Failed to read airtime provider response"})
 	}
 
+	fmt.Printf("airtime provider response status=%d body=%s\n", resp.StatusCode, string(respBody))
+
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		_ = s.markFailedAndRefund(userID, req.Amount, internalRef, string(respBody), providerRef)
 		return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{
@@ -139,12 +118,13 @@ func (s *BillService) HandleAirtimePurchase(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Airtime was purchased but failed to finalize transaction"})
 	}
 
-	var providerResponse map[string]any
+	var providerResponse bond.Response[bond.AirtimeData]
 	if len(respBody) > 0 {
 		if err := json.Unmarshal(respBody, &providerResponse); err != nil {
-			providerResponse = map[string]any{
-				"raw": string(respBody),
-			}
+			return c.Status(fiber.StatusBadGateway).JSON(fiber.Map{
+				"error":        "Invalid airtime provider response",
+				"providerBody": string(respBody),
+			})
 		}
 	}
 
