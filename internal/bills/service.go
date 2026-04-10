@@ -104,7 +104,7 @@ func (s *BillService) HandleAirtimePurchase(c *fiber.Ctx) error {
 		))
 	}
 
-	providerRef, err := generateSecureReference("BOND")
+	outboundProviderRef, err := generateSecureReference("BOND")
 	if err != nil {
 		_ = s.markFailedAndRefund(userID, req.Amount, internalRef, "failed to generate provider reference", "")
 		return c.Status(fiber.StatusInternalServerError).JSON(common.Failure(
@@ -116,7 +116,7 @@ func (s *BillService) HandleAirtimePurchase(c *fiber.Ctx) error {
 	}
 
 	payload := bondAirtimePayload{
-		Reference:       providerRef,
+		Reference:       outboundProviderRef,
 		ProductCode:     req.ProductCode,
 		ProductItemCode: req.ProductItemCode,
 		CustomerVendID:  req.CustomerVendID,
@@ -151,7 +151,7 @@ func (s *BillService) HandleAirtimePurchase(c *fiber.Ctx) error {
 
 	resp, err := client.Do(httpReq)
 	if err != nil {
-		_ = s.markFailedAndRefund(userID, req.Amount, internalRef, "failed to call airtime provider", providerRef)
+		_ = s.markFailedAndRefund(userID, req.Amount, internalRef, "failed to call airtime provider", outboundProviderRef)
 		return c.Status(fiber.StatusBadGateway).JSON(common.Failure(
 			fiber.StatusBadGateway,
 			"BILL_PROVIDER_CALL_FAILED",
@@ -163,7 +163,7 @@ func (s *BillService) HandleAirtimePurchase(c *fiber.Ctx) error {
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		_ = s.markFailedAndRefund(userID, req.Amount, internalRef, "failed to read airtime provider response", providerRef)
+		_ = s.markFailedAndRefund(userID, req.Amount, internalRef, "failed to read airtime provider response", outboundProviderRef)
 		return c.Status(fiber.StatusBadGateway).JSON(common.Failure(
 			fiber.StatusBadGateway,
 			"BILL_PROVIDER_RESPONSE_READ_FAILED",
@@ -172,10 +172,10 @@ func (s *BillService) HandleAirtimePurchase(c *fiber.Ctx) error {
 		))
 	}
 
-	fmt.Printf("airtime provider response status=%d body=%s\n", resp.StatusCode, string(respBody))
+	// fmt.Printf("airtime provider response status=%d body=%s\n", resp.StatusCode, string(respBody))
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		_ = s.markFailedAndRefund(userID, req.Amount, internalRef, string(respBody), providerRef)
+		_ = s.markFailedAndRefund(userID, req.Amount, internalRef, string(respBody), outboundProviderRef)
 		return c.Status(fiber.StatusBadGateway).JSON(common.Failure(
 			fiber.StatusBadGateway,
 			"BILL_AIRTIME_PURCHASE_FAILED",
@@ -187,15 +187,6 @@ func (s *BillService) HandleAirtimePurchase(c *fiber.Ctx) error {
 				ProviderStatus: resp.StatusCode,
 				ProviderBody:   string(respBody),
 			},
-		))
-	}
-
-	if err := s.markSuccess(internalRef, providerRef); err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(common.Failure(
-			fiber.StatusInternalServerError,
-			"BILL_FINALIZATION_FAILED",
-			"Airtime was purchased but failed to finalize transaction",
-			common.ErrorDetail{Details: err.Error()},
 		))
 	}
 
@@ -215,6 +206,15 @@ func (s *BillService) HandleAirtimePurchase(c *fiber.Ctx) error {
 		}
 	}
 
+	if err := s.markSuccess(internalRef, outboundProviderRef, providerResponse.Data.PaymentReference); err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(common.Failure(
+			fiber.StatusInternalServerError,
+			"BILL_FINALIZATION_FAILED",
+			"Airtime was purchased but failed to finalize transaction",
+			common.ErrorDetail{Details: err.Error()},
+		))
+	}
+
 	return c.Status(fiber.StatusOK).JSON(common.Success(
 		fiber.StatusOK,
 		"BILL_AIRTIME_PURCHASE_SUCCESS",
@@ -225,7 +225,7 @@ func (s *BillService) HandleAirtimePurchase(c *fiber.Ctx) error {
 			ProviderResponse  bond.Response[bond.AirtimeData] `json:"providerResponse"`
 		}{
 			Reference:         internalRef,
-			ProviderReference: providerRef,
+			ProviderReference: outboundProviderRef,
 			ProviderResponse:  providerResponse,
 		},
 	))
@@ -262,16 +262,17 @@ func (s *BillService) createPendingDebit(userID string, amount int64, reference,
 	})
 }
 
-func (s *BillService) markSuccess(reference, providerRef string) error {
+func (s *BillService) markSuccess(reference, outboundProviderRef, providerRef string) error {
 	return s.DB.Model(&models.Transaction{}).
 		Where("reference = ?", reference).
 		Updates(map[string]any{
-			"status":       models.Success,
-			"provider_ref": providerRef,
+			"status":                models.Success,
+			"outbound_provider_ref": outboundProviderRef,
+			"provider_ref":          providerRef,
 		}).Error
 }
 
-func (s *BillService) markFailedAndRefund(userID string, amount int64, reference, failureReason, providerRef string) error {
+func (s *BillService) markFailedAndRefund(userID string, amount int64, reference, failureReason, outboundProviderRef string) error {
 	return s.DB.Transaction(func(tx *gorm.DB) error {
 		var wallet models.Wallet
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where("user_id = ?", userID).First(&wallet).Error; err != nil {
@@ -287,9 +288,9 @@ func (s *BillService) markFailedAndRefund(userID string, amount int64, reference
 		return tx.Model(&models.Transaction{}).
 			Where("reference = ?", reference).
 			Updates(map[string]any{
-				"status":       models.Failed,
-				"provider_ref": providerRef,
-				"description":  description,
+				"status":                models.Failed,
+				"outbound_provider_ref": outboundProviderRef,
+				"description":           description,
 			}).Error
 	})
 }

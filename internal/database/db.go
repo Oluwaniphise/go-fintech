@@ -38,6 +38,15 @@ func ConnectDB() *gorm.DB {
 	}
 
 	log.Println("Running Migrations...")
+	migrator := db.Migrator()
+	if migrator.HasTable(&models.Transaction{}) &&
+		migrator.HasColumn(&models.Transaction{}, "provider_ref") &&
+		!migrator.HasColumn(&models.Transaction{}, "outbound_provider_ref") {
+		if err := migrator.RenameColumn(&models.Transaction{}, "provider_ref", "outbound_provider_ref"); err != nil {
+			log.Fatal("Failed to rename provider_ref column: ", err)
+		}
+	}
+
 	db.AutoMigrate(&models.User{}, &models.Wallet{}, &models.Transaction{})
 
 	return db
