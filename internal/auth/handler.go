@@ -1,9 +1,11 @@
 package auth
 
 import (
+	"errors"
 	"fintech/internal/common"
 
 	"github.com/gofiber/fiber/v2"
+	"github.com/jackc/pgx/v5/pgconn"
 )
 
 type RegisterRequest struct {
@@ -17,6 +19,16 @@ type RegisterRequest struct {
 type LoginRequest struct {
 	Email    string `json:"email"`
 	Password string `json:"password"`
+}
+
+type LoginResponse struct {
+	Token string `json:"token"`
+	User  struct {
+		FirstName   string `json:"firstName"`
+		LastName    string `json:"lastName"`
+		Email       string `json:"email"`
+		PhoneNumber string `json:"phoneNumber"`
+	} `json:"user"`
 }
 
 func (s *AuthService) HandleRegister(c *fiber.Ctx) error {
@@ -34,6 +46,25 @@ func (s *AuthService) HandleRegister(c *fiber.Ctx) error {
 	user, err := s.RegisterUser(req.FirstName, req.LastName, req.Email, req.PhoneNumber, req.Password)
 
 	if err != nil {
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) && pgErr.Code == "23505" {
+			message := "User already exists"
+			details := pgErr.Message
+
+			switch pgErr.ConstraintName {
+			case "idx_users_email":
+				message = "User with email already exists"
+			case "idx_users_phone_number":
+				message = "User with phone number already exists"
+			}
+
+			return c.Status(fiber.StatusInternalServerError).JSON(common.Failure(
+				fiber.StatusInternalServerError,
+				"AUTH_REGISTER_FAILED",
+				message,
+				common.ErrorDetail{Details: details},
+			))
+		}
 		return c.Status(fiber.StatusInternalServerError).JSON(common.Failure(
 			fiber.StatusInternalServerError,
 			"AUTH_REGISTER_FAILED",
@@ -66,7 +97,7 @@ func (s *AuthService) HandleLogin(c *fiber.Ctx) error {
 		))
 	}
 
-	token, err := s.Login(req.Email, req.Password)
+	loginResult, err := s.Login(req.Email, req.Password)
 
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(common.Failure(
@@ -77,14 +108,18 @@ func (s *AuthService) HandleLogin(c *fiber.Ctx) error {
 		))
 	}
 
+	response := LoginResponse{
+		Token: loginResult.Token,
+	}
+	response.User.FirstName = loginResult.User.FirstName
+	response.User.LastName = loginResult.User.LastName
+	response.User.Email = loginResult.User.Email
+	response.User.PhoneNumber = loginResult.User.PhoneNumber
+
 	return c.Status(fiber.StatusOK).JSON(common.Success(
 		fiber.StatusOK,
 		"AUTH_LOGIN_SUCCESS",
 		"Login successful",
-		struct {
-			Token string `json:"token"`
-		}{
-			Token: token,
-		},
+		response,
 	))
 }
