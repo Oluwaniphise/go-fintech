@@ -5,7 +5,7 @@ type Response[T any] struct {
 	StatusCode int    `json:"statusCode"`
 	Code       string `json:"code"`
 	Message    string `json:"message"`
-	Data       T      `json:"data,omitempty"`
+	Data       T      `json:"data"`
 	Error      any    `json:"error,omitempty"`
 }
 
