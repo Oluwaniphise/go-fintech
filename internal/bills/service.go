@@ -272,7 +272,7 @@ func (s *BillService) markSuccess(reference, outboundProviderRef, providerRef st
 		}).Error
 }
 
-func (s *BillService) markFailedAndRefund(userID string, amount int64, reference, failureReason, outboundProviderRef string) error {
+func (s *BillService) markFailedAndRefund(userID string, amount int64, reference, _ string, outboundProviderRef string) error {
 	return s.DB.Transaction(func(tx *gorm.DB) error {
 		var wallet models.Wallet
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where("user_id = ?", userID).First(&wallet).Error; err != nil {
@@ -284,7 +284,7 @@ func (s *BillService) markFailedAndRefund(userID string, amount int64, reference
 			return err
 		}
 
-		description := "Airtime purchase failed: " + failureReason
+		description := "Airtime purchase failed"
 		return tx.Model(&models.Transaction{}).
 			Where("reference = ?", reference).
 			Updates(map[string]any{
