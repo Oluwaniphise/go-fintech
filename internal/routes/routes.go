@@ -35,4 +35,5 @@ func Setup(app *fiber.App, db *gorm.DB) {
 	billsGroup.Post("/airtime", billsService.HandleAirtimePurchase)
 
 	transactionsGroup.Get("/me", transactionService.HandleGetUserTransactions)
+	transactionsGroup.Get("/me/stats", transactionService.HandleGetUserTransactionStats)
 }
