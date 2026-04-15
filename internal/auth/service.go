@@ -1,7 +1,10 @@
 package auth
 
 import (
+	"errors"
+	"fintech/internal/email"
 	"fintech/internal/models"
+	"net/url"
 	"os"
 	"time"
 
@@ -29,6 +32,7 @@ func (s *AuthService) RegisterUser(firstName, lastName, email, phone, password s
 		Email:       email,
 		PhoneNumber: phone,
 		Password:    hashedPassword,
+		IsVerified:  false,
 	}
 
 	// use a DB transaction: both must succeed or both fail
@@ -51,6 +55,12 @@ func (s *AuthService) RegisterUser(firstName, lastName, email, phone, password s
 		}
 		return nil
 	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	_ = s.SendVerificationEmail(*user)
 
 	return user, err
 }
@@ -89,4 +99,100 @@ func (s *AuthService) Login(email, password string) (*LoginResult, error) {
 		Token: tokenString,
 		User:  user,
 	}, nil
+}
+
+func (s *AuthService) SendVerificationEmail(user models.User) error {
+	rawToken, err := generateEmailVerificationToken()
+	if err != nil {
+		return err
+	}
+
+	tokenHash := hashEmailVerificationToken(rawToken)
+
+	verificationToken := models.EmailVerificationToken{
+		UserID:    user.ID,
+		TokenHash: tokenHash,
+		ExpiresAt: time.Now().Add(30 * time.Minute),
+	}
+
+	if err := s.DB.Create(&verificationToken).Error; err != nil {
+		return err
+	}
+
+	baseURL := os.Getenv("EMAIL_VERIFICATION_URL")
+
+	verificationURL, err := url.Parse(baseURL)
+	if err != nil {
+		return err
+	}
+
+	query := verificationURL.Query()
+	query.Set("token", rawToken)
+	verificationURL.RawQuery = query.Encode()
+
+	emailService := email.NewEmailService()
+
+	return emailService.SendVerificationEmail(user.Email, verificationURL.String())
+}
+
+func (s *AuthService) VerifyEmail(rawToken string) error {
+	if rawToken == "" {
+		return errors.New("verification token is required")
+	}
+
+	tokenHash := hashEmailVerificationToken(rawToken)
+
+	var verificationToken models.EmailVerificationToken
+
+	err := s.DB.Where("token_hash = ?", tokenHash).First(&verificationToken).Error
+	if err != nil {
+		return err
+	}
+
+	if verificationToken.UsedAt != nil {
+		return errors.New("verification token has already been used")
+	}
+
+	if time.Now().After(verificationToken.ExpiresAt) {
+		return errors.New("verification token has expired")
+	}
+
+	now := time.Now()
+
+	return s.DB.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&models.User{}).
+			Where("id = ?", verificationToken.UserID).
+			Update("is_verified", true).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Model(&models.EmailVerificationToken{}).
+			Where("id = ?", verificationToken.ID).
+			Update("used_at", &now).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+}
+
+func (s *AuthService) ResendVerificationEmail(userEmail string) error {
+	var user models.User
+
+	if err := s.DB.Where("email = ?", userEmail).First(&user).Error; err != nil {
+		return err
+	}
+
+	if user.IsVerified {
+		return errors.New("email is already verified")
+	}
+
+	// Optional: invalidate old unused tokens for this user.
+	if err := s.DB.Model(&models.EmailVerificationToken{}).
+		Where("user_id = ? AND used_at IS NULL", user.ID).
+		Update("used_at", time.Now()).Error; err != nil {
+		return err
+	}
+
+	return s.SendVerificationEmail(user)
 }

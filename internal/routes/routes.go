@@ -24,6 +24,8 @@ func Setup(app *fiber.App, db *gorm.DB) {
 	// 3. auth routes
 	authGroup := api.Group("/auth")
 	authGroup.Post("/register", authService.HandleRegister)
+	authGroup.Post("/verify-email", authService.HandleVerifyEmail)
+	authGroup.Post("/resend-verification-email", authService.HandleResendVerificationEmail)
 	authGroup.Post("/login", authService.HandleLogin)
 
 	walletGroup := api.Group("/wallet", ProtectedRoute())

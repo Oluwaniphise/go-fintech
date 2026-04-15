@@ -31,6 +31,14 @@ type LoginResponse struct {
 	} `json:"user"`
 }
 
+type VerifyEmailRequest struct {
+	Token string `json:"token"`
+}
+
+type ResendVerificationEmailRequest struct {
+	Email string `json:"email"`
+}
+
 func (s *AuthService) HandleRegister(c *fiber.Ctx) error {
 	req := new(RegisterRequest)
 
@@ -121,5 +129,63 @@ func (s *AuthService) HandleLogin(c *fiber.Ctx) error {
 		"AUTH_LOGIN_SUCCESS",
 		"Login successful",
 		response,
+	))
+}
+
+func (s *AuthService) HandleVerifyEmail(c *fiber.Ctx) error {
+	req := new(VerifyEmailRequest)
+
+	if err := c.BodyParser(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(common.Failure(
+			fiber.StatusBadRequest,
+			"AUTH_INVALID_REQUEST",
+			"Invalid request",
+			common.ErrorDetail{Details: "request body could not be parsed"},
+		))
+	}
+
+	if err := s.VerifyEmail(req.Token); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(common.Failure(
+			fiber.StatusBadRequest,
+			"AUTH_EMAIL_VERIFICATION_FAILED",
+			"Invalid or expired verification token",
+			common.ErrorDetail{Details: err.Error()},
+		))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(common.Success(
+		fiber.StatusOK,
+		"AUTH_EMAIL_VERIFIED",
+		"Email verified successfully",
+		struct{}{},
+	))
+}
+
+func (s *AuthService) HandleResendVerificationEmail(c *fiber.Ctx) error {
+	req := new(ResendVerificationEmailRequest)
+
+	if err := c.BodyParser(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(common.Failure(
+			fiber.StatusBadRequest,
+			"AUTH_INVALID_REQUEST",
+			"Invalid request",
+			common.ErrorDetail{Details: "request body could not be parsed"},
+		))
+	}
+
+	if err := s.ResendVerificationEmail(req.Email); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(common.Failure(
+			fiber.StatusBadRequest,
+			"AUTH_RESEND_VERIFICATION_FAILED",
+			"Could not resend verification email",
+			common.ErrorDetail{Details: err.Error()},
+		))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(common.Success(
+		fiber.StatusOK,
+		"AUTH_VERIFICATION_EMAIL_SENT",
+		"Verification email sent successfully",
+		struct{}{},
 	))
 }

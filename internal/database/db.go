@@ -47,7 +47,7 @@ func ConnectDB() *gorm.DB {
 		}
 	}
 
-	db.AutoMigrate(&models.User{}, &models.Wallet{}, &models.Transaction{})
+	db.AutoMigrate(&models.User{}, &models.Wallet{}, &models.Transaction{}, &models.EmailVerificationToken{})
 
 	return db
 }
