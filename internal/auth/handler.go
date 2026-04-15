@@ -84,7 +84,7 @@ func (s *AuthService) HandleRegister(c *fiber.Ctx) error {
 	return c.Status(fiber.StatusCreated).JSON(common.Success(
 		fiber.StatusCreated,
 		"AUTH_REGISTER_SUCCESS",
-		"User created successfully",
+		"User created successfully. Please check your email to verify your account.",
 		struct {
 			UserID string `json:"userId"`
 		}{
