@@ -108,6 +108,16 @@ func (s *AuthService) HandleLogin(c *fiber.Ctx) error {
 	loginResult, err := s.Login(req.Email, req.Password)
 
 	if err != nil {
+
+		if errors.Is(err, ErrEmailNotVerified) {
+			return c.Status(fiber.StatusForbidden).JSON(common.Failure(
+				fiber.StatusForbidden,
+				"AUTH_EMAIL_NOT_VERIFIED",
+				"Please verify your email before logging in.",
+				nil,
+			))
+		}
+
 		return c.Status(fiber.StatusUnauthorized).JSON(common.Failure(
 			fiber.StatusUnauthorized,
 			"AUTH_INVALID_CREDENTIALS",

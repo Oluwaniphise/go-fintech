@@ -22,6 +22,8 @@ type LoginResult struct {
 	User  models.User
 }
 
+var ErrEmailNotVerified = errors.New("email not verified")
+
 func (s *AuthService) RegisterUser(firstName, lastName, email, phone, password string) (*models.User, error) {
 
 	hashedPassword, _ := HashPassword(password)
@@ -80,6 +82,10 @@ func (s *AuthService) Login(email, password string) (*LoginResult, error) {
 
 	if err != nil {
 		return nil, err // wrong password
+	}
+
+	if !user.IsVerified {
+		return nil, ErrEmailNotVerified
 	}
 
 	// 3. create JWT token

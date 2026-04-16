@@ -1,0 +1,17 @@
+package bills
+
+import (
+	"crypto/rand"
+	"encoding/hex"
+	"errors"
+	"fmt"
+)
+
+func GenerateSecureReference(prefix string) (string, error) {
+	randomBytes := make([]byte, 16)
+	if _, err := rand.Read(randomBytes); err != nil {
+		return "", errors.New("unable to generate secure random reference")
+	}
+
+	return fmt.Sprintf("%s_%s", prefix, hex.EncodeToString(randomBytes)), nil
+}
