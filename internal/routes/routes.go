@@ -4,6 +4,7 @@ import (
 	"fintech/internal/auth"
 	"fintech/internal/bills"
 	"fintech/internal/bills/airtime"
+	"fintech/internal/bills/electricity"
 	"fintech/internal/transactions"
 	"fintech/internal/wallet"
 	"net/http"
@@ -22,7 +23,7 @@ func Setup(app *fiber.App, db *gorm.DB) {
 
 	airtimeService := airtime.NewService(deps)
 	// dataService := data.NewService(deps)
-	// electricityService := electricity.NewService(deps)
+	electricityService := electricity.NewService(deps)
 
 	authService := &auth.AuthService{DB: db}
 	walletService := &wallet.WalletService{DB: db}
@@ -45,7 +46,7 @@ func Setup(app *fiber.App, db *gorm.DB) {
 	walletGroup.Get("/balance", walletService.GetBalance)
 	walletGroup.Post("/credit", walletService.HandleCreditWallet)
 	billsGroup.Post("/airtime", airtimeService.HandleAirtimePurchase)
-	// billsGroup.Post("/validate/electricity", airtimeService.HandleAirtimePurchase)
+	billsGroup.Post("/electricity/validate", electricityService.HandleValidateElectricityPurchase)
 
 	transactionsGroup.Get("/me", transactionService.HandleGetUserTransactions)
 	transactionsGroup.Get("/me/stats", transactionService.HandleGetUserTransactionStats)

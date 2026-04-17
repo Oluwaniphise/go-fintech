@@ -1,16 +1,5 @@
 package airtime
 
-import (
-	"net/http"
-
-	"gorm.io/gorm"
-)
-
-type BillService struct {
-	DB         *gorm.DB
-	HTTPClient *http.Client
-}
-
 type AirtimeRequest struct {
 	ProductCode     string `json:"productCode"`
 	ProductItemCode string `json:"productItemCode"`
