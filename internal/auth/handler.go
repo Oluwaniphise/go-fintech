@@ -8,46 +8,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-type RegisterRequest struct {
-	FirstName   string `json:"firstName"`
-	LastName    string `json:"lastName"`
-	Email       string `json:"email"`
-	PhoneNumber string `json:"phoneNumber"`
-	Password    string `json:"password"`
-}
-
-type LoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
-}
-
-type LoginResponse struct {
-	Token string `json:"token"`
-	User  struct {
-		FirstName   string `json:"firstName"`
-		LastName    string `json:"lastName"`
-		Email       string `json:"email"`
-		PhoneNumber string `json:"phoneNumber"`
-	} `json:"user"`
-}
-
-type LoginStartResponse struct {
-	Reference string `json:"reference"`
-}
-
-type VerifyLoginOTPRequest struct {
-	Reference string `json:"reference"`
-	OTP       string `json:"otp"`
-}
-
-type VerifyEmailRequest struct {
-	Token string `json:"token"`
-}
-
-type ResendVerificationEmailRequest struct {
-	Email string `json:"email"`
-}
-
 func (s *AuthService) HandleRegister(c *fiber.Ctx) error {
 	req := new(RegisterRequest)
 
@@ -253,5 +213,45 @@ func (s *AuthService) HandleResendVerificationEmail(c *fiber.Ctx) error {
 		"AUTH_VERIFICATION_EMAIL_SENT",
 		"Verification email sent successfully",
 		struct{}{},
+	))
+}
+
+func (s *AuthService) HandleResendLoginOTP(c *fiber.Ctx) error {
+	req := new(ResendLoginOTPRequest)
+
+	if err := c.BodyParser(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(common.Failure(
+			fiber.StatusBadRequest,
+			"AUTH_INVALID_REQUEST",
+			"Invalid request",
+			common.ErrorDetail{Details: "request body could not be parsed"},
+		))
+	}
+
+	result, err := s.ResendLoginOTP(req.Reference)
+	if err != nil {
+		if errors.Is(err, ErrOTPWaitFor1Minute) {
+			return c.Status(fiber.StatusBadRequest).JSON(common.Failure(
+				fiber.StatusBadRequest,
+				"AUTH_RESEND_OTP_FAILED",
+				"Please wait for a minute before requesting for resend OTP.",
+				common.ErrorDetail{Details: err.Error()},
+			))
+		}
+		return c.Status(fiber.StatusBadRequest).JSON(common.Failure(
+			fiber.StatusBadRequest,
+			"AUTH_RESEND_OTP_FAILED",
+			"Could not resend OTP",
+			common.ErrorDetail{Details: err.Error()},
+		))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(common.Success(
+		fiber.StatusOK,
+		"AUTH_OTP_RESENT",
+		"OTP resent successfully",
+		ResendLoginOTPResponse{
+			Reference: result.Reference,
+		},
 	))
 }

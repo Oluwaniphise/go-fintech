@@ -14,24 +14,12 @@ import (
 	"gorm.io/gorm"
 )
 
-type AuthService struct {
-	DB *gorm.DB
-}
-
-type LoginResult struct {
-	Token string
-	User  models.User
-}
-
-type LoginOTPStartResult struct {
-	Reference string
-}
-
 var (
-	ErrEmailNotVerified = errors.New("email not verified")
-	ErrInvalidOTP       = errors.New("invalid otp")
-	ErrOTPExpired       = errors.New("otp expired")
-	ErrOTPUsed          = errors.New("otp already used")
+	ErrEmailNotVerified  = errors.New("email not verified")
+	ErrInvalidOTP        = errors.New("invalid otp")
+	ErrOTPExpired        = errors.New("otp expired")
+	ErrOTPUsed           = errors.New("otp already used")
+	ErrOTPWaitFor1Minute = errors.New("please wait before requesting another OTP")
 )
 
 func (s *AuthService) RegisterUser(firstName, lastName, email, phone, password string) (*models.User, error) {
@@ -76,46 +64,6 @@ func (s *AuthService) RegisterUser(firstName, lastName, email, phone, password s
 
 	return user, err
 }
-
-// func (s *AuthService) Login(email, password string) (*LoginResult, error) {
-// 	var user models.User
-
-// 	// 1. find user
-
-// 	if err := s.DB.Where("email = ?", email).First(&user).Error; err != nil {
-// 		return nil, err //user not found
-// 	}
-
-// 	// 2. check password
-
-// 	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
-
-// 	if err != nil {
-// 		return nil, err // wrong password
-// 	}
-
-// 	if !user.IsVerified {
-// 		return nil, ErrEmailNotVerified
-// 	}
-
-// 	// 3. create JWT token
-// 	// token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-// 	// 	"user_id": user.ID,
-// 	// 	"exp":     time.Now().Add(time.Hour * 72).Unix(), //expires in 3 days
-// 	// })
-
-// 	// 4. sign token with a secret key from .env
-// 	tokenString, err := s.SignJWT(user)
-
-// 	if err != nil {
-// 		return nil, err
-// 	}
-
-// 	return &LoginResult{
-// 		Token: tokenString,
-// 		User:  user,
-// 	}, nil
-// }
 
 func (s *AuthService) StartLogin(email, password string) (*LoginOTPStartResult, error) {
 	var user models.User
@@ -313,4 +261,65 @@ func (s *AuthService) SignJWT(user models.User) (string, error) {
 	})
 
 	return token.SignedString([]byte(os.Getenv("JWT_SECRET")))
+}
+
+func (s *AuthService) ResendLoginOTP(reference string) (*ResendLoginOTPResult, error) {
+	referenceUUID, err := uuid.Parse(reference)
+	if err != nil {
+		return nil, errors.New("invalid reference id")
+	}
+
+	var existing models.LoginOTPToken
+	if err := s.DB.Where("id = ?", referenceUUID).First(&existing).Error; err != nil {
+		return nil, errors.New("login reference not found")
+	}
+
+	var user models.User
+	if err := s.DB.Where("id = ?", existing.UserID).First(&user).Error; err != nil {
+		return nil, err
+	}
+
+	if time.Since(existing.CreatedAt) < 60*time.Second {
+		return nil, ErrOTPWaitFor1Minute
+	}
+
+	otp, err := generateLoginOTP()
+	if err != nil {
+		return nil, err
+	}
+
+	newToken := models.LoginOTPToken{
+		UserID:    user.ID,
+		CodeHash:  hashLoginOTP(otp),
+		ExpiresAt: time.Now().Add(10 * time.Minute),
+	}
+
+	err = s.DB.Transaction(func(tx *gorm.DB) error {
+		now := time.Now()
+
+		if err := tx.Model(&models.LoginOTPToken{}).
+			Where("user_id = ? AND used_at IS NULL", user.ID).
+			Update("used_at", &now).Error; err != nil {
+			return err
+		}
+
+		if err := tx.Create(&newToken).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	emailService := emailService.NewEmailService()
+	if err := emailService.SendLoginOTPEmail(user.Email, otp); err != nil {
+		return nil, err
+	}
+
+	return &ResendLoginOTPResult{
+		Reference: newToken.ID.String(),
+	}, nil
 }

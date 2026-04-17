@@ -39,6 +39,7 @@ func Setup(app *fiber.App, db *gorm.DB) {
 	authGroup.Post("/resend-verification-email", authService.HandleResendVerificationEmail)
 	authGroup.Post("/login", authService.HandleLogin)
 	authGroup.Post("/login/verify-otp", authService.HandleVerifyLoginOTP)
+	authGroup.Post("/login/resend-otp", authService.HandleResendLoginOTP)
 
 	walletGroup := api.Group("/wallet", ProtectedRoute())
 	billsGroup := api.Group("/bills", ProtectedRoute())
