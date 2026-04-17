@@ -75,7 +75,7 @@ func (s *Service) HandleAirtimePurchase(c *fiber.Ctx) error {
 		))
 	}
 
-	if err := s.createPendingDebit(userID, req.Amount, internalRef, "AIRTIME", "Airtime purchase"); err != nil {
+	if err := s.Helpers.CreatePendingDebit(userID, req.Amount, internalRef, "AIRTIME", "Airtime purchase"); err != nil {
 		if err.Error() == "insufficient funds" {
 			return c.Status(fiber.StatusBadRequest).JSON(common.Failure(
 				fiber.StatusBadRequest,
@@ -102,7 +102,7 @@ func (s *Service) HandleAirtimePurchase(c *fiber.Ctx) error {
 
 	outboundProviderRef, err := bills.GenerateSecureReference("BOND")
 	if err != nil {
-		_ = s.markFailedAndRefund(userID, req.Amount, internalRef, "failed to generate provider reference", "")
+		_ = s.Helpers.MarkFailedAndRefund(userID, req.Amount, internalRef, "failed to generate provider reference", "")
 		return c.Status(fiber.StatusInternalServerError).JSON(common.Failure(
 			fiber.StatusInternalServerError,
 			"BILL_PROVIDER_REFERENCE_FAILED",
@@ -147,7 +147,7 @@ func (s *Service) HandleAirtimePurchase(c *fiber.Ctx) error {
 
 	resp, err := client.Do(httpReq)
 	if err != nil {
-		_ = s.markFailedAndRefund(userID, req.Amount, internalRef, "failed to call airtime provider", outboundProviderRef)
+		_ = s.Helpers.MarkFailedAndRefund(userID, req.Amount, internalRef, "failed to call airtime provider", outboundProviderRef)
 		return c.Status(fiber.StatusBadGateway).JSON(common.Failure(
 			fiber.StatusBadGateway,
 			"BILL_PROVIDER_CALL_FAILED",
@@ -159,7 +159,7 @@ func (s *Service) HandleAirtimePurchase(c *fiber.Ctx) error {
 
 	respBody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		_ = s.markFailedAndRefund(userID, req.Amount, internalRef, "failed to read airtime provider response", outboundProviderRef)
+		_ = s.Helpers.MarkFailedAndRefund(userID, req.Amount, internalRef, "failed to read airtime provider response", outboundProviderRef)
 		return c.Status(fiber.StatusBadGateway).JSON(common.Failure(
 			fiber.StatusBadGateway,
 			"BILL_PROVIDER_RESPONSE_READ_FAILED",
@@ -171,7 +171,7 @@ func (s *Service) HandleAirtimePurchase(c *fiber.Ctx) error {
 	// fmt.Printf("airtime provider response status=%d body=%s\n", resp.StatusCode, string(respBody))
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		_ = s.markFailedAndRefund(userID, req.Amount, internalRef, string(respBody), outboundProviderRef)
+		_ = s.Helpers.MarkFailedAndRefund(userID, req.Amount, internalRef, string(respBody), outboundProviderRef)
 		return c.Status(fiber.StatusBadGateway).JSON(common.Failure(
 			fiber.StatusBadGateway,
 			"BILL_AIRTIME_PURCHASE_FAILED",
@@ -202,7 +202,7 @@ func (s *Service) HandleAirtimePurchase(c *fiber.Ctx) error {
 		}
 	}
 
-	if err := s.markSuccess(internalRef, outboundProviderRef, providerResponse.Data.PaymentReference); err != nil {
+	if err := s.Helpers.MarkSuccess(internalRef, outboundProviderRef, providerResponse.Data.PaymentReference); err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(common.Failure(
 			fiber.StatusInternalServerError,
 			"BILL_FINALIZATION_FAILED",
