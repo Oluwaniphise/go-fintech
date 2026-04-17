@@ -2,13 +2,14 @@ package auth
 
 import (
 	"errors"
-	"fintech/internal/email"
+	emailService "fintech/internal/email"
 	"fintech/internal/models"
 	"net/url"
 	"os"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 	"gorm.io/gorm"
 )
@@ -22,7 +23,16 @@ type LoginResult struct {
 	User  models.User
 }
 
-var ErrEmailNotVerified = errors.New("email not verified")
+type LoginOTPStartResult struct {
+	Reference string
+}
+
+var (
+	ErrEmailNotVerified = errors.New("email not verified")
+	ErrInvalidOTP       = errors.New("invalid otp")
+	ErrOTPExpired       = errors.New("otp expired")
+	ErrOTPUsed          = errors.New("otp already used")
+)
 
 func (s *AuthService) RegisterUser(firstName, lastName, email, phone, password string) (*models.User, error) {
 
@@ -67,36 +77,129 @@ func (s *AuthService) RegisterUser(firstName, lastName, email, phone, password s
 	return user, err
 }
 
-func (s *AuthService) Login(email, password string) (*LoginResult, error) {
+// func (s *AuthService) Login(email, password string) (*LoginResult, error) {
+// 	var user models.User
+
+// 	// 1. find user
+
+// 	if err := s.DB.Where("email = ?", email).First(&user).Error; err != nil {
+// 		return nil, err //user not found
+// 	}
+
+// 	// 2. check password
+
+// 	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
+
+// 	if err != nil {
+// 		return nil, err // wrong password
+// 	}
+
+// 	if !user.IsVerified {
+// 		return nil, ErrEmailNotVerified
+// 	}
+
+// 	// 3. create JWT token
+// 	// token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+// 	// 	"user_id": user.ID,
+// 	// 	"exp":     time.Now().Add(time.Hour * 72).Unix(), //expires in 3 days
+// 	// })
+
+// 	// 4. sign token with a secret key from .env
+// 	tokenString, err := s.SignJWT(user)
+
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	return &LoginResult{
+// 		Token: tokenString,
+// 		User:  user,
+// 	}, nil
+// }
+
+func (s *AuthService) StartLogin(email, password string) (*LoginOTPStartResult, error) {
 	var user models.User
 
-	// 1. find user
-
 	if err := s.DB.Where("email = ?", email).First(&user).Error; err != nil {
-		return nil, err //user not found
+		return nil, err
 	}
 
-	// 2. check password
-
-	err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password))
-
-	if err != nil {
-		return nil, err // wrong password
+	if err := bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(password)); err != nil {
+		return nil, err
 	}
 
 	if !user.IsVerified {
 		return nil, ErrEmailNotVerified
 	}
 
-	// 3. create JWT token
-	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
-		"user_id": user.ID,
-		"exp":     time.Now().Add(time.Hour * 72).Unix(), //expires in 3 days
-	})
+	otp, err := generateLoginOTP()
+	if err != nil {
+		return nil, err
+	}
 
-	// 4. sign token with a secret key from .env
-	tokenString, err := token.SignedString([]byte(os.Getenv(("JWT_SECRET"))))
+	loginOTP := models.LoginOTPToken{
+		UserID:    user.ID,
+		CodeHash:  hashLoginOTP(otp),
+		ExpiresAt: time.Now().Add(10 * time.Minute),
+	}
 
+	if err := s.DB.Create(&loginOTP).Error; err != nil {
+		return nil, err
+	}
+
+	emailService := emailService.NewEmailService()
+	if err := emailService.SendLoginOTPEmail(user.Email, otp); err != nil {
+		return nil, err
+	}
+
+	return &LoginOTPStartResult{
+		Reference: loginOTP.ID.String(),
+	}, nil
+}
+
+func (s *AuthService) VerifyLoginOTP(Reference, otp string) (*LoginResult, error) {
+	referenceUUID, err := uuid.Parse(Reference)
+	if err != nil {
+		return nil, ErrInvalidOTP
+	}
+
+	var otpRecord models.LoginOTPToken
+	if err := s.DB.Where("id = ?", referenceUUID).First(&otpRecord).Error; err != nil {
+		return nil, ErrInvalidOTP
+	}
+
+	if otpRecord.UsedAt != nil {
+		return nil, ErrOTPUsed
+	}
+
+	if time.Now().After(otpRecord.ExpiresAt) {
+		return nil, ErrOTPExpired
+	}
+
+	if otpRecord.AttemptCount >= 5 {
+		return nil, ErrInvalidOTP
+	}
+
+	if otpRecord.CodeHash != hashLoginOTP(otp) {
+		_ = s.DB.Model(&models.LoginOTPToken{}).
+			Where("id = ?", otpRecord.ID).
+			Update("attempt_count", gorm.Expr("attempt_count + 1")).Error
+		return nil, ErrInvalidOTP
+	}
+
+	var user models.User
+	if err := s.DB.Where("id = ?", otpRecord.UserID).First(&user).Error; err != nil {
+		return nil, err
+	}
+
+	now := time.Now()
+	if err := s.DB.Model(&models.LoginOTPToken{}).
+		Where("id = ?", otpRecord.ID).
+		Update("used_at", &now).Error; err != nil {
+		return nil, err
+	}
+
+	tokenString, err := s.SignJWT(user)
 	if err != nil {
 		return nil, err
 	}
@@ -136,7 +239,7 @@ func (s *AuthService) SendVerificationEmail(user models.User) error {
 	query.Set("token", rawToken)
 	verificationURL.RawQuery = query.Encode()
 
-	emailService := email.NewEmailService()
+	emailService := emailService.NewEmailService()
 
 	return emailService.SendVerificationEmail(user.Email, verificationURL.String())
 }
@@ -201,4 +304,13 @@ func (s *AuthService) ResendVerificationEmail(userEmail string) error {
 	}
 
 	return s.SendVerificationEmail(user)
+}
+
+func (s *AuthService) SignJWT(user models.User) (string, error) {
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
+		"user_id": user.ID,
+		"exp":     time.Now().Add(72 * time.Hour).Unix(),
+	})
+
+	return token.SignedString([]byte(os.Getenv("JWT_SECRET")))
 }

@@ -5,7 +5,13 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+
+	"gorm.io/gorm"
 )
+
+type AuthService struct {
+	DB *gorm.DB
+}
 
 func GenerateSecureReference(prefix string) (string, error) {
 	randomBytes := make([]byte, 16)

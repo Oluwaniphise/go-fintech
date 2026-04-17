@@ -31,6 +31,15 @@ type LoginResponse struct {
 	} `json:"user"`
 }
 
+type LoginStartResponse struct {
+	Reference string `json:"reference"`
+}
+
+type VerifyLoginOTPRequest struct {
+	Reference string `json:"reference"`
+	OTP       string `json:"otp"`
+}
+
 type VerifyEmailRequest struct {
 	Token string `json:"token"`
 }
@@ -105,10 +114,8 @@ func (s *AuthService) HandleLogin(c *fiber.Ctx) error {
 		))
 	}
 
-	loginResult, err := s.Login(req.Email, req.Password)
-
+	result, err := s.StartLogin(req.Email, req.Password)
 	if err != nil {
-
 		if errors.Is(err, ErrEmailNotVerified) {
 			return c.Status(fiber.StatusForbidden).JSON(common.Failure(
 				fiber.StatusForbidden,
@@ -124,6 +131,55 @@ func (s *AuthService) HandleLogin(c *fiber.Ctx) error {
 			"Invalid email or password",
 			common.ErrorDetail{Details: err.Error()},
 		))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(common.Success(
+		fiber.StatusOK,
+		"AUTH_OTP_SENT",
+		"OTP sent successfully",
+		LoginStartResponse{
+			Reference: result.Reference,
+		},
+	))
+}
+
+func (s *AuthService) HandleVerifyLoginOTP(c *fiber.Ctx) error {
+	req := new(VerifyLoginOTPRequest)
+
+	if err := c.BodyParser(req); err != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(common.Failure(
+			fiber.StatusBadRequest,
+			"AUTH_INVALID_REQUEST",
+			"Invalid request",
+			common.ErrorDetail{Details: "request body could not be parsed"},
+		))
+	}
+
+	loginResult, err := s.VerifyLoginOTP(req.Reference, req.OTP)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrOTPExpired):
+			return c.Status(fiber.StatusUnauthorized).JSON(common.Failure(
+				fiber.StatusUnauthorized,
+				"AUTH_OTP_EXPIRED",
+				"OTP has expired",
+				nil,
+			))
+		case errors.Is(err, ErrOTPUsed):
+			return c.Status(fiber.StatusUnauthorized).JSON(common.Failure(
+				fiber.StatusUnauthorized,
+				"AUTH_OTP_USED",
+				"OTP has already been used",
+				nil,
+			))
+		default:
+			return c.Status(fiber.StatusUnauthorized).JSON(common.Failure(
+				fiber.StatusUnauthorized,
+				"AUTH_INVALID_OTP",
+				"Invalid OTP",
+				common.ErrorDetail{Details: err.Error()},
+			))
+		}
 	}
 
 	response := LoginResponse{

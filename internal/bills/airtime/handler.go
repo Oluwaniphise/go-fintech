@@ -1,18 +1,17 @@
 package airtime
 
 import (
+	"bytes"
+	"encoding/json"
 	"errors"
 	"fintech/internal/auth"
 	"fintech/internal/bills"
 	"fintech/internal/common"
 	"fintech/internal/providers/bond"
 	"io"
+	"net/http"
 	"os"
 	"time"
-
-	"bytes"
-	"encoding/json"
-	"net/http"
 
 	"github.com/gofiber/fiber/v2"
 	"gorm.io/gorm"

@@ -101,3 +101,54 @@ func verificationEmailHTML(appName, verificationURL string) string {
   </body>
 </html>`, appName, appName, verificationURL, verificationURL, appName)
 }
+
+func (s *EmailService) SendLoginOTPEmail(to, otp string) error {
+	appName := os.Getenv("APP_NAME")
+	if appName == "" {
+		appName = "Go Fintech"
+	}
+
+	params := &resend.SendEmailRequest{
+		From:    s.From,
+		To:      []string{to},
+		Subject: "Your " + appName + " login OTP",
+		Html:    loginOTPEmailHTML(appName, otp),
+	}
+
+	_, err := s.Client.Emails.Send(params)
+	return err
+}
+
+func loginOTPEmailHTML(appName, otp string) string {
+	return fmt.Sprintf(`<!doctype html>
+<html>
+  <body style="margin:0; padding:0; background:#f4f7fb; font-family:Arial, Helvetica, sans-serif;">
+    <table width="100%%" cellpadding="0" cellspacing="0" style="padding:40px 16px;">
+      <tr>
+        <td align="center">
+          <table width="100%%" cellpadding="0" cellspacing="0" style="max-width:560px; background:#ffffff; border-radius:18px; overflow:hidden;">
+            <tr>
+              <td style="background:#0f766e; padding:32px; text-align:center;">
+                <h1 style="margin:0; color:#ffffff;">Login OTP</h1>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:32px;">
+                <p style="font-size:15px; color:#475569;">
+                  Use the code below to complete your login to %s.
+                </p>
+                <div style="margin:24px 0; text-align:center;">
+                  <span style="display:inline-block; font-size:32px; letter-spacing:8px; font-weight:700; color:#0f172a;">%s</span>
+                </div>
+                <p style="font-size:14px; color:#64748b;">
+                  This code expires in 10 minutes. If you did not try to log in, ignore this email.
+                </p>
+              </td>
+            </tr>
+          </table>
+        </td>
+      </tr>
+    </table>
+  </body>
+</html>`, appName, otp)
+}
