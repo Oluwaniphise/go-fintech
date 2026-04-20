@@ -11,8 +11,8 @@ type AuthService struct {
 }
 
 type LoginResult struct {
-	Token string
-	User  models.User
+	// Token string
+	User models.User
 }
 
 type LoginOTPStartResult struct {
@@ -69,4 +69,13 @@ type ResendLoginOTPResponse struct {
 
 type ResendLoginOTPResult struct {
 	Reference string
+}
+
+type MeResponse struct {
+	ID          string `json:"id"`
+	FirstName   string `json:"firstName"`
+	LastName    string `json:"lastName"`
+	Email       string `json:"email"`
+	PhoneNumber string `json:"phoneNumber"`
+	IsVerified  bool   `json:"isVerified"`
 }

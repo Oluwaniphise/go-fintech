@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"fintech/internal/common"
+	"fintech/internal/models"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -105,57 +106,89 @@ func (s *AuthService) HandleLogin(c *fiber.Ctx) error {
 
 func (s *AuthService) HandleVerifyLoginOTP(c *fiber.Ctx) error {
 	req := new(VerifyLoginOTPRequest)
-
 	if err := c.BodyParser(req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(common.Failure(
-			fiber.StatusBadRequest,
-			"AUTH_INVALID_REQUEST",
-			"Invalid request",
-			common.ErrorDetail{Details: "request body could not be parsed"},
-		))
+		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request"})
 	}
 
 	loginResult, err := s.VerifyLoginOTP(req.Reference, req.OTP)
 	if err != nil {
-		switch {
-		case errors.Is(err, ErrOTPExpired):
-			return c.Status(fiber.StatusUnauthorized).JSON(common.Failure(
-				fiber.StatusUnauthorized,
-				"AUTH_OTP_EXPIRED",
-				"OTP has expired",
-				nil,
-			))
-		case errors.Is(err, ErrOTPUsed):
-			return c.Status(fiber.StatusUnauthorized).JSON(common.Failure(
-				fiber.StatusUnauthorized,
-				"AUTH_OTP_USED",
-				"OTP has already been used",
-				nil,
-			))
-		default:
-			return c.Status(fiber.StatusUnauthorized).JSON(common.Failure(
-				fiber.StatusUnauthorized,
-				"AUTH_INVALID_OTP",
-				"Invalid OTP",
-				common.ErrorDetail{Details: err.Error()},
-			))
-		}
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid otp"})
 	}
 
-	response := LoginResponse{
-		Token: loginResult.Token,
+	session, err := s.CreateSession(loginResult.User, c.Get("User-Agent"), c.IP())
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "could not create session"})
 	}
-	response.User.FirstName = loginResult.User.FirstName
-	response.User.LastName = loginResult.User.LastName
-	response.User.Email = loginResult.User.Email
-	response.User.PhoneNumber = loginResult.User.PhoneNumber
+
+	setAuthCookies(c, session.AccessToken, session.RefreshToken)
+
+	// return c.Status(fiber.StatusOK).JSON(fiber.Map{
+	// 	"message": "login successful",
+	// 	"user": fiber.Map{
+	// 		"firstName":   loginResult.User.FirstName,
+	// 		"lastName":    loginResult.User.LastName,
+	// 		"email":       loginResult.User.Email,
+	// 		"phoneNumber": loginResult.User.PhoneNumber,
+	// 	},
+	// })
 
 	return c.Status(fiber.StatusOK).JSON(common.Success(
 		fiber.StatusOK,
-		"AUTH_LOGIN_SUCCESS",
-		"Login successful",
-		response,
+		"AUTH_LOGIN_SUCCESSFUL",
+		"login successful",
+		struct {
+			User struct {
+				FirstName   string `json:"firstName"`
+				LastName    string `json:"lastName"`
+				Email       string `json:"email"`
+				PhoneNumber string `json:"phoneNumber"`
+			} `json:"user"`
+		}{
+			User: struct {
+				FirstName   string `json:"firstName"`
+				LastName    string `json:"lastName"`
+				Email       string `json:"email"`
+				PhoneNumber string `json:"phoneNumber"`
+			}{
+				FirstName:   loginResult.User.FirstName,
+				LastName:    loginResult.User.LastName,
+				Email:       loginResult.User.Email,
+				PhoneNumber: loginResult.User.PhoneNumber,
+			},
+		},
 	))
+}
+
+func (s *AuthService) HandleRefresh(c *fiber.Ctx) error {
+	refreshToken := c.Cookies(refreshCookieName)
+	if refreshToken == "" {
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "missing refresh token"})
+	}
+
+	session, err := s.RefreshSession(refreshToken, c.Get("User-Agent"), c.IP())
+	if err != nil {
+		clearAuthCookies(c)
+		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid refresh token"})
+	}
+
+	setAuthCookies(c, session.AccessToken, session.RefreshToken)
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "session refreshed",
+	})
+}
+
+func (s *AuthService) HandleLogout(c *fiber.Ctx) error {
+	refreshToken := c.Cookies(refreshCookieName)
+	if refreshToken != "" {
+		_ = s.RevokeSession(refreshToken)
+	}
+
+	clearAuthCookies(c)
+
+	return c.Status(fiber.StatusOK).JSON(fiber.Map{
+		"message": "logged out",
+	})
 }
 
 func (s *AuthService) HandleVerifyEmail(c *fiber.Ctx) error {
@@ -252,6 +285,42 @@ func (s *AuthService) HandleResendLoginOTP(c *fiber.Ctx) error {
 		"OTP resent successfully",
 		ResendLoginOTPResponse{
 			Reference: result.Reference,
+		},
+	))
+}
+
+func (s *AuthService) HandleMe(c *fiber.Ctx) error {
+	userID, err := GetUserIDFromContext(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(common.Failure(
+			fiber.StatusUnauthorized,
+			"AUTH_UNAUTHORIZED",
+			"Unauthorized",
+			common.ErrorDetail{Details: err.Error()},
+		))
+	}
+
+	var user models.User
+	if err := s.DB.Where("id = ?", userID).First(&user).Error; err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(common.Failure(
+			fiber.StatusUnauthorized,
+			"AUTH_USER_NOT_FOUND",
+			"User not found",
+			common.ErrorDetail{Details: err.Error()},
+		))
+	}
+
+	return c.Status(fiber.StatusOK).JSON(common.Success(
+		fiber.StatusOK,
+		"AUTH_ME_SUCCESS",
+		"Authenticated user fetched successfully",
+		MeResponse{
+			ID:          user.ID.String(),
+			FirstName:   user.FirstName,
+			LastName:    user.LastName,
+			Email:       user.Email,
+			PhoneNumber: user.PhoneNumber,
+			IsVerified:  user.IsVerified,
 		},
 	))
 }
