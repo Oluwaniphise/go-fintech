@@ -42,7 +42,7 @@ func Setup(app *fiber.App, db *gorm.DB) {
 	authGroup.Post("/refresh", authService.HandleRefresh)
 	authGroup.Post("/login/verify-otp", authService.HandleVerifyLoginOTP)
 	authGroup.Post("/login/resend-otp", authService.HandleResendLoginOTP)
-	authGroup.Get("/me", ProtectedRoute(), authService.HandleMe)
+	authGroup.Get("/me", ProtectedRoute(), authService.HandleLoggedInUserDetails)
 
 	walletGroup := api.Group("/wallet", ProtectedRoute())
 	billsGroup := api.Group("/bills", ProtectedRoute())

@@ -36,8 +36,8 @@ func (s *Service) HandleValidateElectricityPurchase(c *fiber.Ctx) error {
 		))
 	}
 
-	appID := c.Get("app-id")
-	appSecret := c.Get("app-secret")
+	appID := os.Getenv("BOND_APP_ID")
+	appSecret := os.Getenv("BOND_APP_SECRET")
 
 	if appID == "" || appSecret == "" {
 		return c.Status(fiber.StatusBadRequest).JSON(common.Failure(

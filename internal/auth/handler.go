@@ -3,7 +3,6 @@ package auth
 import (
 	"errors"
 	"fintech/internal/common"
-	"fintech/internal/models"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -289,7 +288,7 @@ func (s *AuthService) HandleResendLoginOTP(c *fiber.Ctx) error {
 	))
 }
 
-func (s *AuthService) HandleMe(c *fiber.Ctx) error {
+func (s *AuthService) HandleLoggedInUserDetails(c *fiber.Ctx) error {
 	userID, err := GetUserIDFromContext(c)
 	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(common.Failure(
@@ -300,8 +299,8 @@ func (s *AuthService) HandleMe(c *fiber.Ctx) error {
 		))
 	}
 
-	var user models.User
-	if err := s.DB.Where("id = ?", userID).First(&user).Error; err != nil {
+	user, err := s.GetLoggedInUserDetails(userID)
+	if err != nil {
 		return c.Status(fiber.StatusUnauthorized).JSON(common.Failure(
 			fiber.StatusUnauthorized,
 			"AUTH_USER_NOT_FOUND",

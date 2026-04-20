@@ -323,3 +323,14 @@ func (s *AuthService) ResendLoginOTP(reference string) (*ResendLoginOTPResult, e
 		Reference: newToken.ID.String(),
 	}, nil
 }
+
+func (s *AuthService) GetLoggedInUserDetails(userID string) (*models.User, error) {
+
+	var user models.User
+	if err := s.DB.Where("id = ?", userID).First(&user).Error; err != nil {
+		return nil, err
+	}
+
+	return &user, nil
+
+}

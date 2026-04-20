@@ -37,11 +37,15 @@ func setAuthCookies(c *fiber.Ctx, accessToken, refreshToken string) {
 }
 
 func clearAuthCookies(c *fiber.Ctx) {
+	secure := os.Getenv("APP_ENV") == "production"
+
 	c.Cookie(&fiber.Cookie{
 		Name:     accessCookieName,
 		Value:    "",
 		HTTPOnly: true,
-		Path:     "/",
+		Secure:   secure,
+		SameSite: "Lax",
+		Path:     "/api/v1",
 		MaxAge:   -1,
 	})
 
@@ -49,7 +53,9 @@ func clearAuthCookies(c *fiber.Ctx) {
 		Name:     refreshCookieName,
 		Value:    "",
 		HTTPOnly: true,
-		Path:     "/api/v1/",
+		Secure:   secure,
+		SameSite: "Lax",
+		Path:     "/api/v1",
 		MaxAge:   -1,
 	})
 }
