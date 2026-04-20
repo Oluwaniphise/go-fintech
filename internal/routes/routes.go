@@ -48,7 +48,7 @@ func Setup(app *fiber.App, db *gorm.DB) {
 	billsGroup := api.Group("/bills", ProtectedRoute())
 	transactionsGroup := api.Group("/transactions", ProtectedRoute())
 
-	walletGroup.Get("/balance", walletService.GetBalance)
+	walletGroup.Get("/balance", walletService.HandleGetBalance)
 	walletGroup.Post("/credit", walletService.HandleCreditWallet)
 	billsGroup.Post("/airtime", airtimeService.HandleAirtimePurchase)
 	billsGroup.Post("/electricity/validate", electricityService.HandleValidateElectricityPurchase)

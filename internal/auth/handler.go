@@ -171,19 +171,36 @@ func (s *AuthService) HandleVerifyLoginOTP(c *fiber.Ctx) error {
 func (s *AuthService) HandleRefresh(c *fiber.Ctx) error {
 	refreshToken := c.Cookies(refreshCookieName)
 	if refreshToken == "" {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "missing refresh token"})
+		return c.Status(fiber.StatusBadRequest).JSON(common.Failure(
+			fiber.StatusBadRequest,
+			"REFRESH_TOKEN_MISSING",
+			"Refresh token missing",
+			nil,
+		))
 	}
 
 	session, err := s.RefreshSession(refreshToken, c.Get("User-Agent"), c.IP())
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid refresh token"})
+		return c.Status(fiber.StatusUnauthorized).JSON(common.Failure(
+			fiber.StatusUnauthorized,
+			"INVALID_REFRESH_TOKEN",
+			"Invalid refresh token",
+			common.ErrorDetail{Details: err.Error()},
+		))
 	}
 
-	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message":      "session refreshed",
-		"accessToken":  session.AccessToken,
-		"refreshToken": session.RefreshToken,
-	})
+	return c.Status(fiber.StatusOK).JSON(common.Success(
+		fiber.StatusOK,
+		"SESSION_REFRESHED",
+		"Session refreshed",
+		struct {
+			AccessToken  string `json:"accessToken"`
+			RefreshToken string `json:"refreshToken"`
+		}{
+			AccessToken:  session.AccessToken,
+			RefreshToken: session.RefreshToken,
+		},
+	))
 }
 
 func (s *AuthService) HandleLogout(c *fiber.Ctx) error {

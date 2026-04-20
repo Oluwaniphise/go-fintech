@@ -11,30 +11,29 @@ import (
 	"gorm.io/gorm"
 )
 
+var (
+	ErrBalanceRecordNotFound = errors.New("Balance record not found")
+	ErrInsufficientFunds     = errors.New("Insufficient funds")
+)
+
 type WalletService struct {
 	DB *gorm.DB
 }
 
-func (s *WalletService) GetBalance(c *fiber.Ctx) error {
-	userID, err := auth.GetUserIDFromContext(c)
-	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": err.Error()})
-	}
+func (s *WalletService) GetBalance(userID string) (*models.Wallet, error) {
 
 	var wallet models.Wallet
 	if err := s.DB.Where("user_id = ?", userID).First(&wallet).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			return c.Status(fiber.StatusNotFound).JSON(fiber.Map{"error": "Wallet not found"})
+			return nil, ErrBalanceRecordNotFound
 		}
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Failed to fetch wallet balance"})
+		return nil, err
 	}
 
-	return c.JSON(fiber.Map{
-		"user_id":  wallet.UserId,
-		"balance":  wallet.Balance,
-		"currency": wallet.Currency,
-	})
+	return &wallet, nil
+
 }
+
 func generateTransactionReference() string {
 	return "TXN_" + strings.ToUpper(strings.ReplaceAll(uuid.NewString(), "-", ""))
 }
@@ -42,7 +41,7 @@ func generateTransactionReference() string {
 func (s *WalletService) CreditWallet(c *fiber.Ctx, amount int64, desc string) error {
 	userID, err := auth.GetUserIDFromContext(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": err.Error()})
+		return err
 	}
 
 	return s.DB.Transaction(func(tx *gorm.DB) error {
@@ -77,11 +76,11 @@ func (s *WalletService) CreditWallet(c *fiber.Ctx, amount int64, desc string) er
 	})
 }
 
-func (s *WalletService) DebitWallet(c *fiber.Ctx, amount int64, reference string, category string, desc string) error {
+func (s *WalletService) DebitWallet(c *fiber.Ctx, amount int64, desc string) error {
 
 	userID, err := auth.GetUserIDFromContext(c)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": err.Error()})
+		return err
 	}
 
 	return s.DB.Transaction(func(tx *gorm.DB) error {
@@ -95,7 +94,7 @@ func (s *WalletService) DebitWallet(c *fiber.Ctx, amount int64, reference string
 		// 1. check balance
 
 		if wallet.Balance < amount {
-			return errors.New("insufficient funds")
+			return ErrInsufficientFunds
 		}
 
 		// 3. deduct balance
@@ -115,7 +114,7 @@ func (s *WalletService) DebitWallet(c *fiber.Ctx, amount int64, reference string
 			Status:      models.Pending, // we start as pending until API confirms
 			Reference:   reference,
 			Description: desc,
-			Category:    category,
+			Category:    "DEBIT",
 		}
 
 		return tx.Create(&transaction).Error
