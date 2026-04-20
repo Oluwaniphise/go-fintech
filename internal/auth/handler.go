@@ -106,49 +106,59 @@ func (s *AuthService) HandleLogin(c *fiber.Ctx) error {
 func (s *AuthService) HandleVerifyLoginOTP(c *fiber.Ctx) error {
 	req := new(VerifyLoginOTPRequest)
 	if err := c.BodyParser(req); err != nil {
-		return c.Status(fiber.StatusBadRequest).JSON(fiber.Map{"error": "invalid request"})
+
+		return c.Status(fiber.StatusBadRequest).JSON(common.Failure(
+			fiber.StatusBadRequest,
+			"INVALID_REQUEST",
+			"Invalid request",
+			common.ErrorDetail{Details: err.Error()},
+		))
 	}
 
 	loginResult, err := s.VerifyLoginOTP(req.Reference, req.OTP)
 	if err != nil {
-		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid otp"})
+
+		return c.Status(fiber.StatusUnauthorized).JSON(common.Failure(
+			fiber.StatusUnauthorized,
+			"AUTH_INVALID_OTP",
+			"Invalid OTP",
+			common.ErrorDetail{Details: err.Error()},
+		))
 	}
 
-	session, err := s.CreateSession(loginResult.User, c.Get("User-Agent"), c.IP())
+	accessToken, err := s.SignAccessToken(loginResult.User)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "could not create session"})
+		return c.Status(fiber.StatusInternalServerError).JSON(common.Failure(
+			fiber.StatusInternalServerError,
+			"AUTH_ACCESS_TOKEN_CREATION_FAILED",
+			"Could not create access token",
+			common.ErrorDetail{Details: err.Error()},
+		))
 	}
-
-	setAuthCookies(c, session.AccessToken, session.RefreshToken)
-
-	// return c.Status(fiber.StatusOK).JSON(fiber.Map{
-	// 	"message": "login successful",
-	// 	"user": fiber.Map{
-	// 		"firstName":   loginResult.User.FirstName,
-	// 		"lastName":    loginResult.User.LastName,
-	// 		"email":       loginResult.User.Email,
-	// 		"phoneNumber": loginResult.User.PhoneNumber,
-	// 	},
-	// })
 
 	return c.Status(fiber.StatusOK).JSON(common.Success(
 		fiber.StatusOK,
 		"AUTH_LOGIN_SUCCESSFUL",
 		"login successful",
 		struct {
-			User struct {
+			AccessToken string `json:"accessToken"`
+			User        struct {
+				ID          string `json:"id"`
 				FirstName   string `json:"firstName"`
 				LastName    string `json:"lastName"`
 				Email       string `json:"email"`
 				PhoneNumber string `json:"phoneNumber"`
 			} `json:"user"`
 		}{
+			AccessToken: accessToken,
 			User: struct {
+				ID          string `json:"id"`
 				FirstName   string `json:"firstName"`
 				LastName    string `json:"lastName"`
 				Email       string `json:"email"`
 				PhoneNumber string `json:"phoneNumber"`
 			}{
+				ID:          loginResult.User.ID.String(),
 				FirstName:   loginResult.User.FirstName,
 				LastName:    loginResult.User.LastName,
 				Email:       loginResult.User.Email,
@@ -166,14 +176,13 @@ func (s *AuthService) HandleRefresh(c *fiber.Ctx) error {
 
 	session, err := s.RefreshSession(refreshToken, c.Get("User-Agent"), c.IP())
 	if err != nil {
-		clearAuthCookies(c)
 		return c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": "invalid refresh token"})
 	}
 
-	setAuthCookies(c, session.AccessToken, session.RefreshToken)
-
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
-		"message": "session refreshed",
+		"message":      "session refreshed",
+		"accessToken":  session.AccessToken,
+		"refreshToken": session.RefreshToken,
 	})
 }
 
@@ -182,8 +191,6 @@ func (s *AuthService) HandleLogout(c *fiber.Ctx) error {
 	if refreshToken != "" {
 		_ = s.RevokeSession(refreshToken)
 	}
-
-	clearAuthCookies(c)
 
 	return c.Status(fiber.StatusOK).JSON(fiber.Map{
 		"message": "logged out",

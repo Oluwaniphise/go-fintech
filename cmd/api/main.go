@@ -1,7 +1,6 @@
 package main
 
 import (
-	"fintech/internal/auth"
 	"fintech/internal/database"
 	"fintech/internal/routes"
 	"log"
@@ -21,7 +20,6 @@ func main() {
 	app := fiber.New()
 
 	app.Use(logger.New())
-	app.Use(auth.DebugTokenLogger())
 	app.Use(cors.New(cors.Config{
 		AllowOrigins:     getAllowedOrigins(),
 		AllowMethods:     "GET,POST,PUT,PATCH,DELETE,OPTIONS",

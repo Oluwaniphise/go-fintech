@@ -147,13 +147,7 @@ func (s *AuthService) VerifyLoginOTP(Reference, otp string) (*LoginResult, error
 		return nil, err
 	}
 
-	// tokenString, err := s.SignJWT(user)
-	// if err != nil {
-	// 	return nil, err
-	// }
-
 	return &LoginResult{
-		// Token: tokenString,
 		User: user,
 	}, nil
 }
