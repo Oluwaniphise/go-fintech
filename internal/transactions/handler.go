@@ -1,6 +1,7 @@
 package transactions
 
 import (
+	"fintech/internal/auth"
 	"fintech/internal/common"
 
 	"github.com/gofiber/fiber/v2"
@@ -8,10 +9,26 @@ import (
 
 func (s *TransactionService) HandleGetUserTransactions(c *fiber.Ctx) error {
 
-	result, err := s.GetUserTransactions(c)
+	userID, err := auth.GetUserIDFromContext(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(common.Failure(
+			fiber.StatusUnauthorized,
+			"AUTH_UNAUTHORIZED",
+			"Unauthorized: Please login to continue",
+			common.ErrorDetail{Details: err.Error()},
+		))
+
+	}
+
+	result, err := s.GetUserTransactions(c, userID)
 
 	if err != nil {
-		return c.Status(500).JSON(fiber.Map{"error": "Could not fetch transactions"})
+		return c.Status(fiber.StatusInternalServerError).JSON(common.Failure(
+			fiber.StatusInternalServerError,
+			"TRANSACTIONS_FAILED",
+			"Could not fetch transactions",
+			common.ErrorDetail{Details: err.Error()},
+		))
 	}
 
 	return c.Status(fiber.StatusOK).JSON((common.Success(
@@ -25,7 +42,12 @@ func (s *TransactionService) HandleGetUserTransactions(c *fiber.Ctx) error {
 func (s *TransactionService) HandleGetUserTransactionStats(c *fiber.Ctx) error {
 	stats, err := s.GetUserTransactionStats(c)
 	if err != nil {
-		return c.Status(fiber.StatusInternalServerError).JSON(fiber.Map{"error": "Could not fetch transaction stats"})
+		return c.Status(fiber.StatusInternalServerError).JSON(common.Failure(
+			fiber.StatusInternalServerError,
+			"TRANSACTION_STATS_ERROR",
+			"Failed to fetch transaction stats",
+			common.ErrorDetail{Details: err.Error()},
+		))
 	}
 
 	return c.Status(fiber.StatusOK).JSON(common.Success(
