@@ -217,13 +217,13 @@ func (s *Service) HandleAirtimePurchase(c *fiber.Ctx) error {
 		"BILL_AIRTIME_PURCHASE_SUCCESS",
 		"Airtime purchase successful",
 		struct {
-			Reference         string                          `json:"reference"`
-			ProviderReference string                          `json:"providerReference"`
-			ProviderResponse  bond.Response[bond.AirtimeData] `json:"providerResponse"`
+			Reference         string           `json:"reference"`
+			ProviderReference string           `json:"providerReference"`
+			AirtimeData       bond.AirtimeData `json:"airtimeData"`
 		}{
 			Reference:         internalRef,
 			ProviderReference: outboundProviderRef,
-			ProviderResponse:  providerResponse,
+			AirtimeData:       providerResponse.Data,
 		},
 	))
 }

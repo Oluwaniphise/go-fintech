@@ -30,3 +30,24 @@ type ValidateElectricityResponse struct {
 		ArrearsBalance float64 `json:"arrearsBalance"`
 	}
 }
+
+type ProductsResponse struct {
+	ID           int64  `json:"id"`
+	Name         string `json:"name"`
+	Code         string `json:"code"`
+	DisplayImage string `json:"displayImage"`
+	New          bool   `json:"new"`
+	SkipBoolean  bool   `json:"skipValidation"`
+}
+
+type ProductItemsResponse struct {
+	ID            int64   `json:"id"`
+	Name          string  `json:"name"`
+	Code          string  `json:"code"`
+	Amount        float64 `json:"amount"`
+	MinAmount     float64 `json:"minAmount"`
+	MaxAmount     float64 `json:"maxAmount"`
+	IsFixedAmount bool    `json:"isFixedAmount"`
+	New           bool    `json:"new"`
+	Duration      int64   `json:"duration"`
+}

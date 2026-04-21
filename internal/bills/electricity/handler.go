@@ -7,7 +7,6 @@ import (
 	"fintech/internal/bills"
 	"fintech/internal/common"
 	"fintech/internal/providers/bond"
-	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -139,7 +138,7 @@ func (s *Service) HandleValidateElectricityPurchase(c *fiber.Ctx) error {
 		))
 	}
 
-	fmt.Printf("electricity validate provider response status=%d body=%s\n", resp.StatusCode, string(respBody))
+	// fmt.Printf("electricity validate provider response status=%d body=%s\n", resp.StatusCode, string(respBody))
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 		return c.Status(fiber.StatusBadGateway).JSON(common.Failure(
@@ -176,16 +175,16 @@ func (s *Service) HandleValidateElectricityPurchase(c *fiber.Ctx) error {
 
 	return c.Status(fiber.StatusOK).JSON(common.Success(
 		fiber.StatusOK,
-		"BILL_AIRTIME_PURCHASE_SUCCESS",
-		"Airtime purchase successful",
+		"BILL_VALIDATE_ELECTRICITY_SUCCESS",
+		"Meter No validated successfully",
 		struct {
-			Reference         string                                          `json:"reference"`
-			ProviderReference string                                          `json:"providerReference"`
-			ProviderResponse  bond.Response[bond.ValidateElectricityResponse] `json:"providerResponse"`
+			Reference         string                           `json:"reference"`
+			ProviderReference string                           `json:"providerReference"`
+			ElectricityData   bond.ValidateElectricityResponse `json:"electricityData"`
 		}{
 			Reference:         internalRef,
 			ProviderReference: outboundProviderRef,
-			ProviderResponse:  providerResponse,
+			ElectricityData:   providerResponse.Data,
 		},
 	))
 
