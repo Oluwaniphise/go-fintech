@@ -16,3 +16,17 @@ type AirtimeData struct {
 	CustomerVendID   string `json:"customerVendId"`
 	TransactionData  any    `json:"transactionData"`
 }
+
+type ValidateElectricityResponse struct {
+	Reference     string  `json:"reference"`
+	CustomerName  string  `json:"customerName"`
+	MinimumAmount float64 `json:"minimumAmount"`
+	MaximumAmount float64 `json:"maximumAmount"`
+
+	CustomerData struct {
+		CustomerName   string  `json:"customerName"`
+		Address        *string `json:"address"`
+		CanVend        bool    `json:"canVend"`
+		ArrearsBalance float64 `json:"arrearsBalance"`
+	}
+}

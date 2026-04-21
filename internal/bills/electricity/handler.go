@@ -3,7 +3,10 @@ package electricity
 import (
 	"bytes"
 	"encoding/json"
+	"fintech/internal/auth"
+	"fintech/internal/bills"
 	"fintech/internal/common"
+	"fintech/internal/providers/bond"
 	"fmt"
 	"io"
 	"net/http"
@@ -53,15 +56,36 @@ func (s *Service) HandleValidateElectricityPurchase(c *fiber.Ctx) error {
 		client = &http.Client{Timeout: 20 * time.Second}
 	}
 
-	// userID, err := auth.GetUserIDFromContext(c)
-	// if err != nil {
-	// 	return c.Status(fiber.StatusUnauthorized).JSON(common.Failure(
-	// 		fiber.StatusUnauthorized,
-	// 		"AUTH_UNAUTHORIZED",
-	// 		err.Error(),
-	// 		nil,
-	// 	))
-	// }
+	_, err := auth.GetUserIDFromContext(c)
+	if err != nil {
+		return c.Status(fiber.StatusUnauthorized).JSON(common.Failure(
+			fiber.StatusUnauthorized,
+			"AUTH_UNAUTHORIZED",
+			err.Error(),
+			nil,
+		))
+	}
+
+	internalRef, err := bills.GenerateSecureReference("ELEC")
+	if err != nil {
+		return c.Status(fiber.StatusInternalServerError).JSON(common.Failure(
+			fiber.StatusInternalServerError,
+			"BILL_REFERENCE_GENERATION_FAILED",
+			"Failed to generate transaction reference",
+			common.ErrorDetail{Details: err.Error()},
+		))
+	}
+
+	outboundProviderRef, err := bills.GenerateSecureReference("BOND")
+	if err != nil {
+		// _ = s.Helpers.MarkFailedAndRefund(userID, req.Amount, internalRef, "failed to generate provider reference", "")
+		return c.Status(fiber.StatusInternalServerError).JSON(common.Failure(
+			fiber.StatusInternalServerError,
+			"BILL_PROVIDER_REFERENCE_FAILED",
+			"Failed to generate provider reference",
+			common.ErrorDetail{Details: err.Error()},
+		))
+	}
 
 	payload := ElectricityRequestValidate{
 		ProductCode:     req.ProductCode,
@@ -85,7 +109,7 @@ func (s *Service) HandleValidateElectricityPurchase(c *fiber.Ctx) error {
 		return c.Status(fiber.StatusInternalServerError).JSON(common.Failure(
 			fiber.StatusInternalServerError,
 			"BILL_PROVIDER_REQUEST_CREATE_FAILED",
-			"Failed to create airtime request",
+			"Failed to valid meter token",
 			common.ErrorDetail{Details: err.Error()},
 		))
 	}
@@ -117,6 +141,52 @@ func (s *Service) HandleValidateElectricityPurchase(c *fiber.Ctx) error {
 
 	fmt.Printf("electricity validate provider response status=%d body=%s\n", resp.StatusCode, string(respBody))
 
-	return c.JSON(string(respBody))
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return c.Status(fiber.StatusBadGateway).JSON(common.Failure(
+			fiber.StatusBadGateway,
+			"BILL_ELECTRICITY_VERIFICATION_FAILED",
+			"Electricity verification failed",
+			struct {
+				ProviderStatus int    `json:"providerStatus"`
+				ProviderBody   string `json:"providerBody"`
+			}{
+				ProviderStatus: resp.StatusCode,
+				ProviderBody:   string(respBody),
+			},
+		))
+	}
+
+	var providerResponse bond.Response[bond.ValidateElectricityResponse]
+	if len(respBody) > 0 {
+		if err := json.Unmarshal(respBody, &providerResponse); err != nil {
+			return c.Status(fiber.StatusBadGateway).JSON(common.Failure(
+				fiber.StatusBadGateway,
+				"BILL_PROVIDER_RESPONSE_INVALID",
+				"Invalid electricity provider response",
+				struct {
+					ProviderBody string `json:"providerBody"`
+					Error        string `json:"error"`
+				}{
+					ProviderBody: string(respBody),
+					Error:        err.Error(),
+				},
+			))
+		}
+	}
+
+	return c.Status(fiber.StatusOK).JSON(common.Success(
+		fiber.StatusOK,
+		"BILL_AIRTIME_PURCHASE_SUCCESS",
+		"Airtime purchase successful",
+		struct {
+			Reference         string                                          `json:"reference"`
+			ProviderReference string                                          `json:"providerReference"`
+			ProviderResponse  bond.Response[bond.ValidateElectricityResponse] `json:"providerResponse"`
+		}{
+			Reference:         internalRef,
+			ProviderReference: outboundProviderRef,
+			ProviderResponse:  providerResponse,
+		},
+	))
 
 }

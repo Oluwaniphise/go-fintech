@@ -32,7 +32,7 @@ func (h *Helpers) CreatePendingDebit(userID string, amount int64, reference, cat
 		}
 
 		if wallet.Balance < amount {
-			return errors.New("insufficient funds")
+			return errors.New("Insufficient funds")
 		}
 
 		wallet.Balance -= amount

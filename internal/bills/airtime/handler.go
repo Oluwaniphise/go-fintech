@@ -194,8 +194,10 @@ func (s *Service) HandleAirtimePurchase(c *fiber.Ctx) error {
 				"Invalid airtime provider response",
 				struct {
 					ProviderBody string `json:"providerBody"`
+					Error        string `json:"error"`
 				}{
 					ProviderBody: string(respBody),
+					Error:        err.Error(),
 				},
 			))
 		}
