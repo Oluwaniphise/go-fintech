@@ -64,12 +64,12 @@ func (s *Service) HandleAirtimePurchase(c *fiber.Ctx) error {
 		))
 	}
 
-	internalRef, err := bills.GenerateSecureReference("AIR")
+	internalRef, err := bills.GenerateSecureReference()
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(common.Failure(
 			fiber.StatusInternalServerError,
 			"BILL_REFERENCE_GENERATION_FAILED",
-			"Failed to generate transaction reference",
+			"Failed to generate  reference",
 			common.ErrorDetail{Details: err.Error()},
 		))
 	}
@@ -99,7 +99,7 @@ func (s *Service) HandleAirtimePurchase(c *fiber.Ctx) error {
 		))
 	}
 
-	outboundProviderRef, err := bills.GenerateSecureReference("BOND")
+	outboundProviderRef, err := bills.GenerateSecureReference()
 	if err != nil {
 		_ = s.Helpers.MarkFailedAndRefund(userID, req.Amount, internalRef, "failed to generate provider reference", "")
 		return c.Status(fiber.StatusInternalServerError).JSON(common.Failure(

@@ -54,6 +54,7 @@ func Setup(app *fiber.App, db *gorm.DB) {
 	walletGroup.Post("/credit", walletService.HandleCreditWallet)
 	billsGroup.Post("/airtime", airtimeService.HandleAirtimePurchase)
 	billsGroup.Post("/electricity/validate", electricityService.HandleValidateElectricityPurchase)
+	billsGroup.Post("/electricity/pay", electricityService.HandleElectricityPurchase)
 	billsGroup.Get("/services/:serviceCode/items", catalogService.HandleGetBondProducts)
 	billsGroup.Get("/services/items/:id", catalogService.HandleGetBondProductItems)
 
