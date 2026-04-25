@@ -6,6 +6,7 @@ import (
 	"fintech/internal/models"
 	"net/url"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
@@ -23,6 +24,12 @@ var (
 )
 
 func (s *AuthService) RegisterUser(firstName, lastName, email, phone, password string) (*models.User, error) {
+
+	// normalize
+	email = strings.ToLower(strings.TrimSpace(email))
+	firstName = strings.TrimSpace(firstName)
+	lastName = strings.TrimSpace(lastName)
+	phone = strings.TrimSpace(phone)
 
 	hashedPassword, _ := HashPassword(password)
 
@@ -66,6 +73,9 @@ func (s *AuthService) RegisterUser(firstName, lastName, email, phone, password s
 }
 
 func (s *AuthService) StartLogin(email, password string) (*LoginOTPStartResult, error) {
+
+	email = strings.ToLower(strings.TrimSpace(email))
+
 	var user models.User
 
 	if err := s.DB.Where("email = ?", email).First(&user).Error; err != nil {

@@ -10,8 +10,8 @@ import (
 )
 
 type CreditWalletRequest struct {
-	Amount      int64  `json:"amount"`
-	Description string `json:"desc"`
+	Amount      int64  `json:"amount" validate:"required,gt=0"`
+	Description string `json:"desc" validate:"omitempty,max=255"`
 }
 type DebitWalletRequest struct {
 	Amount      int64  `json:"amount"`

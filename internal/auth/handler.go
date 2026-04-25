@@ -3,6 +3,7 @@ package auth
 import (
 	"errors"
 	"fintech/internal/common"
+	"fintech/internal/validation"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/jackc/pgx/v5/pgconn"
@@ -17,6 +18,15 @@ func (s *AuthService) HandleRegister(c *fiber.Ctx) error {
 			"AUTH_INVALID_REQUEST",
 			"Invalid request",
 			common.ErrorDetail{Details: "request body could not be parsed"},
+		))
+	}
+
+	if validationErrors := validation.Validate(req); validationErrors != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(common.Failure(
+			fiber.StatusBadRequest,
+			"AUTH_VALIDATION_FAILED",
+			"Validation failed",
+			validationErrors,
 		))
 	}
 
@@ -71,6 +81,15 @@ func (s *AuthService) HandleLogin(c *fiber.Ctx) error {
 			"AUTH_INVALID_REQUEST",
 			"Invalid request",
 			common.ErrorDetail{Details: "request body could not be parsed"},
+		))
+	}
+
+	if validationErrors := validation.Validate(req); validationErrors != nil {
+		return c.Status(fiber.StatusBadRequest).JSON(common.Failure(
+			fiber.StatusBadRequest,
+			"AUTH_VALIDATION_FAILED",
+			"Validation failed",
+			validationErrors,
 		))
 	}
 

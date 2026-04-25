@@ -12,13 +12,13 @@ type BillPurchaseConfig struct {
 }
 
 type BillPurchaseRequest struct {
-	ValidationReference string `json:"validationReference"`
-	ProductCode         string `json:"productCode"`
-	ProductItemCode     string `json:"productItemCode"`
-	CustomerVendID      string `json:"customerVendId"`
-	CustomerEmail       string `json:"customerEmail"`
-	CustomerPhoneNumber string `json:"customerPhoneNumber"`
-	Amount              int64  `json:"amount"`
+	ValidationReference string `json:"validationReference" validate:"omitempty,uuid4"`
+	ProductCode         string `json:"productCode" validate:"required,max=100"`
+	ProductItemCode     string `json:"productItemCode" validate:"required,max=100"`
+	CustomerVendID      string `json:"customerVendId" validate:"required,max=100"`
+	CustomerEmail       string `json:"customerEmail" validate:"required,email,max=255"`
+	CustomerPhoneNumber string `json:"customerPhoneNumber" validate:"required,e164,max=20"`
+	Amount              int64  `json:"amount" validate:"required,gt=0"`
 }
 
 type billPurchasePayload struct {
