@@ -20,21 +20,22 @@ type LoginOTPStartResult struct {
 }
 
 type RegisterRequest struct {
-	FirstName   string `json:"firstName"`
-	LastName    string `json:"lastName"`
-	Email       string `json:"email"`
-	PhoneNumber string `json:"phoneNumber"`
-	Password    string `json:"password"`
+	FirstName   string `json:"firstName" validate:"required,min=2,max=100"`
+	LastName    string `json:"lastName"  validate:"required,min=2,max=100"`
+	Email       string `json:"email" validate:"required,email,max=255"`
+	PhoneNumber string `json:"phoneNumber" validate:"required,e164,max=20"`
+	Password    string `json:"password" validate:"required,password,max=72"`
 }
 
 type LoginRequest struct {
-	Email    string `json:"email"`
-	Password string `json:"password"`
+	Email    string `json:"email" validate:"required,email,max=255"`
+	Password string `json:"password" validate:"required"`
 }
 
 type LoginResponse struct {
-	Token string `json:"token"`
-	User  struct {
+	AccessToken string `json:"accessToken"`
+	User        struct {
+		ID          string `json:"id"`
 		FirstName   string `json:"firstName"`
 		LastName    string `json:"lastName"`
 		Email       string `json:"email"`
@@ -47,20 +48,20 @@ type LoginStartResponse struct {
 }
 
 type VerifyLoginOTPRequest struct {
-	Reference string `json:"reference"`
-	OTP       string `json:"otp"`
+	Reference string `json:"reference" validate:"required,uuid4"`
+	OTP       string `json:"otp" validate:"required,len=6,numeric"`
 }
 
 type VerifyEmailRequest struct {
-	Token string `json:"token"`
+	Token string `json:"token" validate:"required"`
 }
 
 type ResendVerificationEmailRequest struct {
-	Email string `json:"email"`
+	Email string `json:"email"  validate:"required,email,max=255"`
 }
 
 type ResendLoginOTPRequest struct {
-	Reference string `json:"reference"`
+	Reference string `json:"reference"  validate:"required,uuid4"`
 }
 
 type ResendLoginOTPResponse struct {

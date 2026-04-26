@@ -30,11 +30,7 @@ type PaginatedTransactionsResponse struct {
 	Meta         common.PaginationMeta `json:"meta"`
 }
 
-func (s *TransactionService) GetUserTransactions(c *fiber.Ctx) (*PaginatedTransactionsResponse, error) {
-	userID, err := auth.GetUserIDFromContext(c)
-	if err != nil {
-		return nil, c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": err.Error()})
-	}
+func (s *TransactionService) GetUserTransactions(c *fiber.Ctx, userID string) (*PaginatedTransactionsResponse, error) {
 
 	parsedUserID, err := uuid.Parse(userID)
 
@@ -80,7 +76,7 @@ func (s *TransactionService) GetUserTransactions(c *fiber.Ctx) (*PaginatedTransa
 func (s *TransactionService) GetUserTransactionStats(c *fiber.Ctx) (TransactionStats, error) {
 	userID, err := auth.GetUserIDFromContext(c)
 	if err != nil {
-		return TransactionStats{}, c.Status(fiber.StatusUnauthorized).JSON(fiber.Map{"error": err.Error()})
+		return TransactionStats{}, err
 	}
 
 	parsedUserID, err := uuid.Parse(userID)

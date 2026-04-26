@@ -64,12 +64,12 @@ func (s *Service) HandleAirtimePurchase(c *fiber.Ctx) error {
 		))
 	}
 
-	internalRef, err := bills.GenerateSecureReference("AIR")
+	internalRef, err := bills.GenerateSecureReference()
 	if err != nil {
 		return c.Status(fiber.StatusInternalServerError).JSON(common.Failure(
 			fiber.StatusInternalServerError,
 			"BILL_REFERENCE_GENERATION_FAILED",
-			"Failed to generate transaction reference",
+			"Failed to generate  reference",
 			common.ErrorDetail{Details: err.Error()},
 		))
 	}
@@ -99,7 +99,7 @@ func (s *Service) HandleAirtimePurchase(c *fiber.Ctx) error {
 		))
 	}
 
-	outboundProviderRef, err := bills.GenerateSecureReference("BOND")
+	outboundProviderRef, err := bills.GenerateSecureReference()
 	if err != nil {
 		_ = s.Helpers.MarkFailedAndRefund(userID, req.Amount, internalRef, "failed to generate provider reference", "")
 		return c.Status(fiber.StatusInternalServerError).JSON(common.Failure(
@@ -194,8 +194,10 @@ func (s *Service) HandleAirtimePurchase(c *fiber.Ctx) error {
 				"Invalid airtime provider response",
 				struct {
 					ProviderBody string `json:"providerBody"`
+					Error        string `json:"error"`
 				}{
 					ProviderBody: string(respBody),
+					Error:        err.Error(),
 				},
 			))
 		}
@@ -215,13 +217,13 @@ func (s *Service) HandleAirtimePurchase(c *fiber.Ctx) error {
 		"BILL_AIRTIME_PURCHASE_SUCCESS",
 		"Airtime purchase successful",
 		struct {
-			Reference         string                          `json:"reference"`
-			ProviderReference string                          `json:"providerReference"`
-			ProviderResponse  bond.Response[bond.AirtimeData] `json:"providerResponse"`
+			Reference         string           `json:"reference"`
+			ProviderReference string           `json:"providerReference"`
+			AirtimeData       bond.AirtimeData `json:"airtimeData"`
 		}{
 			Reference:         internalRef,
 			ProviderReference: outboundProviderRef,
-			ProviderResponse:  providerResponse,
+			AirtimeData:       providerResponse.Data,
 		},
 	))
 }

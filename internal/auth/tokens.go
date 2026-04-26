@@ -15,10 +15,9 @@ import (
 )
 
 const (
-	accessCookieName  = "access_token"
 	refreshCookieName = "refresh_token"
 
-	accessTokenTTL  = 1 * time.Minute
+	accessTokenTTL  = 500 * time.Minute
 	refreshTokenTTL = 7 * 24 * time.Hour
 )
 
